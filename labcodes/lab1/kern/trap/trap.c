@@ -210,17 +210,6 @@ trap_dispatch(struct trapframe *tf) {
         break;
     case T_SWITCH_TOK:
         if(tf->tf_cs != KERNEL_CS){  // 不等则切换
-            // tf->tf_cs = KERNEL_CS;
-            // tf->tf_ds = KERNEL_DS;
-            // tf->tf_es = KERNEL_DS;
-            // tf->tf_eflags;
-            // tf->tf_cs = KERNEL_CS;
-            // tf->tf_ds = tf->tf_es = KERNEL_DS;
-            // tf->tf_eflags &= ~FL_IOPL_MASK;
-            // switchu2k = (struct trapframe *)(tf->tf_esp - (sizeof(struct trapframe) - 8));
-            // memmove(switchu2k, tf, sizeof(struct trapframe) - 8);
-            // *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
-
             u2k = *tf;
             u2k.tf_cs = KERNEL_CS;
             u2k.tf_ds = KERNEL_DS;
