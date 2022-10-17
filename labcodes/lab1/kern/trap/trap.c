@@ -50,6 +50,7 @@ idt_init(void) {
     int i = 0;
     for(i = 0; i < 256; i++) SETGATE(idt[i], 0, GD_KTEXT , __vectors[i], DPL_KERNEL);
     SETGATE(idt[T_SYSCALL], 0, GD_KTEXT , __vectors[T_SYSCALL], DPL_USER);
+    SETGATE(idt[T_SWITCH_TOK], 0, GD_KTEXT, __vectors[T_SWITCH_TOK], DPL_USER);
     lidt(&idt_pd);
 }
 
@@ -139,7 +140,7 @@ print_regs(struct pushregs *regs) {
     cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
 
-int e_count = 0;
+struct trapframe k2u, u2k;
 
 /* trap_dispatch - dispatch based on what type of trap occurred */
 static void
@@ -154,7 +155,7 @@ trap_dispatch(struct trapframe *tf) {
          * (2) Every TICK_NUM cycle, you can print some info using a funciton, such as print_ticks().
          * (3) Too Simple? Yes, I think so!
          */
-        e_count++ != 0 ? e_count % TICK_NUM == 0 ? print_ticks() : NULL : NULL;
+        ticks++ != 0 ? ticks % TICK_NUM == 0 ? print_ticks() : NULL : NULL;
         break;
     case IRQ_OFFSET + IRQ_COM1:
         c = cons_getc();
@@ -163,16 +164,79 @@ trap_dispatch(struct trapframe *tf) {
     case IRQ_OFFSET + IRQ_KBD:
         c = cons_getc();
         cprintf("kbd [%03d] %c\n", c, c);
+        if(c == '0'){
+            if (tf->tf_cs != KERNEL_CS) {
+                cprintf("+++ switch to  kernel  mode +++\n");
+                u2k = *tf;
+                u2k.tf_cs = KERNEL_CS;
+                u2k.tf_ds = KERNEL_DS;
+                u2k.tf_es = KERNEL_DS;
+                u2k.tf_ss = KERNEL_DS;
+                u2k.tf_esp = tf->tf_esp;
+                u2k.tf_eflags &= ~FL_IOPL_MASK;  // 保证printf正常
+                
+                *((uint32_t *)tf - 1) = (uint32_t)&u2k;
+            }
+        }
+        else if(c == '3')
+        {
+            if (tf->tf_cs != USER_CS) {
+                cprintf("+++ switch to  user  mode +++\n");
+                k2u = *tf;
+                k2u.tf_cs = USER_CS;
+                k2u.tf_ds = USER_DS;
+                k2u.tf_es = USER_DS;
+                k2u.tf_ss = USER_DS;
+                k2u.tf_esp = tf->tf_esp;
+                k2u.tf_eflags |= FL_IOPL_MASK;  // 保证printf正常
+                *((uint32_t *)tf - 1) = (uint32_t)&k2u;
+            }
+        }
         break;
     //LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
     case T_SWITCH_TOU:
+        if(tf->tf_cs != USER_CS){  // 不等则切换
+            k2u = *tf;
+            k2u.tf_cs = USER_CS;
+            k2u.tf_ds = USER_DS;
+            k2u.tf_es = USER_DS;
+            k2u.tf_ss = USER_DS;
+            k2u.tf_esp = tf->tf_esp;
+            k2u.tf_eflags |= FL_IOPL_MASK;  // 保证printf正常
+            
+            *((uint32_t *)tf - 1) = (uint32_t)&k2u;
+        }
+
+        break;
     case T_SWITCH_TOK:
-        panic("T_SWITCH_** ??\n");
+        if(tf->tf_cs != KERNEL_CS){  // 不等则切换
+            // tf->tf_cs = KERNEL_CS;
+            // tf->tf_ds = KERNEL_DS;
+            // tf->tf_es = KERNEL_DS;
+            // tf->tf_eflags;
+            // tf->tf_cs = KERNEL_CS;
+            // tf->tf_ds = tf->tf_es = KERNEL_DS;
+            // tf->tf_eflags &= ~FL_IOPL_MASK;
+            // switchu2k = (struct trapframe *)(tf->tf_esp - (sizeof(struct trapframe) - 8));
+            // memmove(switchu2k, tf, sizeof(struct trapframe) - 8);
+            // *((uint32_t *)tf - 1) = (uint32_t)switchu2k;
+
+            u2k = *tf;
+            u2k.tf_cs = KERNEL_CS;
+            u2k.tf_ds = KERNEL_DS;
+            u2k.tf_es = KERNEL_DS;
+            u2k.tf_ss = KERNEL_DS;
+            u2k.tf_esp = tf->tf_esp;
+            u2k.tf_eflags &= ~FL_IOPL_MASK;  // 保证printf正常
+            
+            *((uint32_t *)tf - 1) = (uint32_t)&u2k;
+
+        }
+        //panic("T_SWITCH_** ??\n");
         break;
     case IRQ_OFFSET + IRQ_IDE1:
     case IRQ_OFFSET + IRQ_IDE2:
         /* do nothing */
-        break;
     default:
         // in kernel, it must be a mistake
         if ((tf->tf_cs & 3) == 0) {
