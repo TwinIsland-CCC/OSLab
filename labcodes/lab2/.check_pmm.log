@@ -1,0 +1,47 @@
+(THU.CST) os is loading ...
+
+Special kernel symbols:
+  entry  0xc0100036 (phys)
+  etext  0xc010613a (phys)
+  edata  0xc011a000 (phys)
+  end    0xc011afe4 (phys)
+Kernel executable memory footprint: 108KB
+ebp:0xc0116f38, eip:0xc01009dd args:0x00010094 0x00000000 0xc0116f68 0xc01000c8
+    kern/debug/kdebug.c:310: print_stackframe+22
+ebp:0xc0116f48, eip:0xc0100cec args:0x00000000 0x00000000 0x00000000 0xc0116fb8
+    kern/debug/kmonitor.c:129: mon_backtrace+10
+ebp:0xc0116f68, eip:0xc01000c8 args:0x00000000 0xc0116f90 0xffff0000 0xc0116f94
+    kern/init/init.c:49: grade_backtrace2+33
+ebp:0xc0116f88, eip:0xc01000f1 args:0x00000000 0xffff0000 0xc0116fb4 0x0000002a
+    kern/init/init.c:54: grade_backtrace1+38
+ebp:0xc0116fa8, eip:0xc010010f args:0x00000000 0xc0100036 0xffff0000 0x0000001d
+    kern/init/init.c:59: grade_backtrace0+23
+ebp:0xc0116fc8, eip:0xc0100134 args:0xc010615c 0xc0106140 0x00000fe4 0x00000000
+    kern/init/init.c:64: grade_backtrace+34
+ebp:0xc0116ff8, eip:0xc010008b args:0xc0106304 0xc010630c 0xc0100c72 0xc010632b
+    kern/init/init.c:29: kern_init+84
+memory management: default_pmm_manager
+e820map:
+  memory: 0009fc00, [00000000, 0009fbff], type = 1.
+  memory: 00000400, [0009fc00, 0009ffff], type = 2.
+  memory: 00010000, [000f0000, 000fffff], type = 2.
+  memory: 07efe000, [00100000, 07ffdfff], type = 1.
+  memory: 00002000, [07ffe000, 07ffffff], type = 2.
+  memory: 00040000, [fffc0000, ffffffff], type = 2.
+check_alloc_page() succeeded!
+kernel panic at kern/mm/pmm.c:478:
+    assertion failed: get_pte(boot_pgdir, PGSIZE, 0) == ptep
+stack trackback:
+ebp:0xc0116f18, eip:0xc01009dd args:0xc0106438 0xc0116f5c 0x000001de 0xc0103ec2
+    kern/debug/kdebug.c:310: print_stackframe+22
+ebp:0xc0116f48, eip:0xc0100d5d args:0xc0106da4 0x000001de 0xc0106dc9 0xc0106f24
+    kern/debug/panic.c:27: __panic+105
+ebp:0xc0116f88, eip:0xc0104bc9 args:0x00000000 0xffff0000 0xc0116fb4 0x0000002a
+    kern/mm/pmm.c:478: check_pgdir+605
+ebp:0xc0116fc8, eip:0xc0104706 args:0xc010615c 0xc0106140 0x00000fe4 0x00000000
+    kern/mm/pmm.c:294: pmm_init+90
+ebp:0xc0116ff8, eip:0xc0100090 args:0xc0106304 0xc010630c 0xc0100c72 0xc010632b
+    kern/init/init.c:31: kern_init+89
+Welcome to the kernel debug monitor!!
+Type 'help' for a list of commands.
+K> 

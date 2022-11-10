@@ -44,9 +44,7 @@ list_init(list_entry_t *elm) {
 
 /* *
  * list_add - add a new entry
- * @listelm:    list head to add after
- * @elm:        new entry to be added
- *
+ * @listelm:    list head to add afterle2page
  * Insert the new element @elm *after* the element @listelm which
  * is already in the list.
  * */
