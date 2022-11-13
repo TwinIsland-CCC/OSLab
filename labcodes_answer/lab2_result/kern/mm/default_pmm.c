@@ -106,6 +106,7 @@ default_init(void) {
 
 static void
 default_init_memmap(struct Page *base, size_t n) {
+    cprintf("[buddy] initing memmap, n = %u \n", (unsigned int)n);
     assert(n > 0);
     struct Page *p = base;
     for (; p != base + n; p ++) {
