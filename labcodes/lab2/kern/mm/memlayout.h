@@ -124,6 +124,23 @@ typedef struct {
     unsigned int nr_free;           // # of free pages in this free list
 } free_area_t;
 
+#define lchild(x) ((x << 1) + 1)
+#define rchild(x) ((x + 1) << 1)
+#define islchild(x) (x & 1 == 1)
+#define isrchild(x) (x & 1 == 0)
+#define parent(x) ((x - 1) >> 1)
+
+#define MAX_BUDDY_ORDER 15  // computed by hardware
+#define MAX_BUDDY_SIZE 1 << (MAX_BUDDY_ORDER + 1) - 1
+/* buddy system */
+typedef struct {
+    unsigned int max_order;                           // 实际最大块的大小
+    struct Page* free_array[MAX_BUDDY_SIZE]; 
+    int buddy_tag[MAX_BUDDY_SIZE];  // to show the size of node
+    int buddy_flag[MAX_BUDDY_SIZE];  // to show the state of node
+    unsigned int nr_free_buddy;                             // 伙伴系统中剩余的空闲块
+} free_buddy_t;
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* !__KERN_MM_MEMLAYOUT_H__ */
