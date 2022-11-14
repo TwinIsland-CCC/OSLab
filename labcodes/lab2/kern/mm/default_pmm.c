@@ -118,7 +118,7 @@ default_init_memmap(struct Page *base, size_t n) {
     SetPageProperty(base);  // let it can be used
     nr_free += n;  // calculate the total nr_free
     list_add_before(&free_list, &(base->page_link));  // follow the FF
-    cprintf("one\n");;
+    cprintf("one\n");
 }
 
 static struct Page *
