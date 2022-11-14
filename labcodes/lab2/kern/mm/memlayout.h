@@ -126,8 +126,8 @@ typedef struct {
 
 #define lchild(x) ((x << 1) + 1)
 #define rchild(x) ((x + 1) << 1)
-#define islchild(x) (x & 1 == 1)
-#define isrchild(x) (x & 1 == 0)
+#define islchild(x) ((x & 1) == 1)
+#define isrchild(x) ((x & 1) == 0)
 #define parent(x) ((x - 1) >> 1)
 
 #define MAX_BUDDY_ORDER 15  // computed by hardware

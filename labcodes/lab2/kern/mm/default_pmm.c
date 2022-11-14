@@ -136,10 +136,12 @@ static u32 log2(u32 n) {
 }
 
 static int page2index(struct Page* n) {
+    cprintf("[buddy] page2index, page = %p\n", n);
     int k = 0;  // k is the real index
     for(k; k < buddy_size; k = lchild(k)){
         //cprintf("[buddy] alloc memmap k computing, k = %d, buddy_tag[k] = %d\n", k, buddy_tag[k]);
-        if (n == buddy_tag[k]) break;  // find level first
+        //cprintf("[buddy] page2index, n->property = %u, buddy_tag[k] = %d\n", n->property, buddy_tag[k]);
+        if (n->property == buddy_tag[k]) break;  // find level first
     }
     return k + (n - buddy_start) / n->property;
 }
@@ -256,6 +258,7 @@ buddy_split_pages(struct Page *p0, size_t n, int index) {  // split p0 to n size
     buddy_flag[index] = 0;
     //cprintf("[buddy] split memmap COMPLETE, page = %p, property = %u\n", p0, p0->property);
     //cprintf("[buddy] split memmap COMPLETE, page's sib = %p, property = %u\n", free_array[index + 1], free_array[index + 1]->property);
+    cprintf("[buddy] split over and alloc memmap COMPLETE, index = %d, page = %p, property = %u\n", index, p0, p0->property);
     return p0;
 }
 
@@ -296,7 +299,7 @@ buddy_alloc_pages(size_t n) {
             free_array[k + shift] = NULL;
             buddy_flag[k + shift] = 0;
             nrfree_buddy -= upper_n;
-            cprintf("[buddy] alloc memmap COMPLETE, page = %p, property = %u\n", page, page->property);
+            cprintf("[buddy] alloc memmap COMPLETE, index = %d, page = %p, property = %u\n", k + shift, page, page->property);
             return page;
         }
     }
@@ -315,7 +318,7 @@ buddy_alloc_pages(size_t n) {
                 nrfree_buddy -= upper_n;
                 page->property = 0;
                 ClearPageProperty(page);
-                cprintf("[buddy] alloc memmap COMPLETE, page = %p, property = %u\n", page, page->property);
+                //cprintf("[buddy] alloc memmap COMPLETE, index = %d, page = %p, property = %u\n", j + shift, page, page->property);
                 return page;
             }
             //cprintf("[buddy] alloc memmap, not found, cycle2, shift = %d\n", shift);
@@ -328,31 +331,19 @@ buddy_alloc_pages(size_t n) {
 static void
 buddy_merge_pages(struct Page *base, size_t n) {
     assert(n > 0);
-    cprintf("[buddy] free memmap start\n");
-    unsigned int pnum = 1 << (base->property);
+    cprintf("[buddy] merge memmap start\n");
     int upper_n = n2pow2ru(n);
-    assert(upper_n == pnum);
 
     int order = max_order - log2(upper_n);
     int layer_bound = 1 << order;
 
     struct Page *page = base;
 
-    int k = 0;  // k is the real index
-    for(k; k < buddy_size; k = lchild(k)){
-        if (upper_n == buddy_tag[k]) break;  // find level first
-    }
 
-    int shift = 0;  // shift in layer
-    int prev_index = 0;
-    for(shift; k + shift < layer_bound; shift++){
-        if(free_array[k + shift] != NULL){
-            if(free_array[k + shift] == page) {
-                prev_index = k + shift;
-                break;
-            }
-        }
-    }
+    int index = page2index(page);
+
+    int prev_index = index;
+
 
     if(prev_index == 0) return;
 
@@ -360,93 +351,119 @@ buddy_merge_pages(struct Page *base, size_t n) {
     assert(free_array[parent(prev_index)] == NULL);
     if(islchild(prev_index)){
         if(buddy_flag[prev_index + 1] == 1) {
-            //cprintf("[buddy] free memmap merge to the right\n");
             SetPageProperty(page);
-            page->property = upper_n;
+            page->property = 2 * upper_n;
+            cprintf("[buddy] free memmap merge to the right, page->property = %u\n", page->property);
             free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
             free_array[prev_index + 1]     = NULL, buddy_flag[prev_index + 1]     = 0;
             free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
             buddy_merge_pages(page, 2 * upper_n);
         }
+        else{
+            cprintf("[buddy] can't memmap merge, islchild\n");
+            SetPageProperty(page);
+            page->property = upper_n;
+            free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
+        }
     }
     else if(isrchild(prev_index)){
         if(buddy_flag[prev_index - 1] == 1) {
-            //cprintf("[buddy] free memmap merge to the left\n");
-            page -= page->property;
+            cprintf("[buddy] free memmap merge to the left\n");
+            page -= upper_n;
             SetPageProperty(page);
-            page->property = upper_n;
+            page->property = 2 * upper_n;
             free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
             free_array[prev_index - 1]     = NULL, buddy_flag[prev_index - 1]     = 0;
             free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
             buddy_merge_pages(page, 2 * upper_n);
         }
-    } 
+        else{
+            cprintf("[buddy] can't memmap merge, isrchild\n");
+            SetPageProperty(page);
+            page->property = upper_n;
+            free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
+        }
+    }
 }
 
 static void
 buddy_free_pages(struct Page *base, size_t n) {
-    assert(n > 0);
-    cprintf("[buddy] free memmap start\n");
-    int upper_n = n2pow2ru(n);
-    //cprintf("[buddy] free memmap, upper_n = %d\n", upper_n);
-    int order = max_order - log2(upper_n);
-    int layer_bound = 1 << order;
+    // u32 curr_n = n2pow2rd(n);
+    // struct Page *page = base;
+    // while(n != 0)  // many blocks
+    // {
+        assert(n > 0);
+        cprintf("[buddy] free memmap start\n");
+        //u32 curr_n = n2pow2rd(n);
+        struct Page *page = base;
+        //int upper_n = curr_n;
+        int upper_n = n2pow2ru(n);
+        cprintf("[buddy] free memmap, upper_n = %d\n", upper_n);
+        int order = max_order - log2(upper_n);
+        int layer_bound = 1 << order;
 
-    struct Page *p = base;
-    for (; p != base + upper_n; p ++) {
-        //cprintf("[buddy] free memmap, reseting base, base = %p, n = %u, reserved = %d, property = %d\n", base, (u32)n, PageReserved(p), PageProperty(p));
-        assert(!PageReserved(p) && !PageProperty(p));
-        p->flags = 0;
-        set_page_ref(p, 0);
-    }
-    nrfree_buddy += upper_n;
+        struct Page *p = base;
+        for (; p != base + upper_n; p ++) {
+            //cprintf("[buddy] free memmap, reseting base, p = %p, n = %u, reserved = %d, property = %d, num = %d\n", p, (u32)n, PageReserved(p), PageProperty(p), p - base);
+            assert(!PageReserved(p) && !PageProperty(p));
+            p->flags = 0;
+            set_page_ref(p, 0);
+        }
+        nrfree_buddy += upper_n;
+        base->property = upper_n;
+        cprintf("[buddy] free memmap, clear over\n");
+        // 查找符合要求的连续页
 
-    // 查找符合要求的连续页
-    struct Page *page = base;
+        int index = page2index(page);
 
-    int k = 0;  // k is the real index
-    for(k; k < buddy_size; k = lchild(k)){
-        if (upper_n == buddy_tag[k]) break;  // find level first
-    }
+        int prev_index = index;
 
-    int shift = 0;  // shift in layer
-    int prev_index = 0;
-    for(shift; shift < layer_bound; shift++){
-        if(free_array[k + shift] != NULL){
-            if(free_array[k + shift] == p) {
-                //cprintf("[buddy] free memmap, free_array[k + shift] == p\n");
-                prev_index = k + shift;
-                break;
+        cprintf("[buddy] free memmap, index = %d, prev_index = %d, free_array[prev_index] = %p\n", index, prev_index, free_array[prev_index]);
+
+        if(prev_index == 0) return;
+
+        assert(free_array[prev_index] == NULL);
+        assert(free_array[parent(prev_index)] == NULL);
+        if(islchild(prev_index)){
+            if(buddy_flag[prev_index + 1] == 1) {
+                SetPageProperty(page);
+                page->property = 2 * upper_n;
+                cprintf("[buddy] free memmap merge to the right, page->property = %u\n", page->property);
+                free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
+                free_array[prev_index + 1]     = NULL, buddy_flag[prev_index + 1]     = 0;
+                free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
+                buddy_merge_pages(page, 2 * upper_n);
+            }
+            else{
+                cprintf("[buddy] can't memmap merge, islchild\n");
+                SetPageProperty(page);
+                page->property = upper_n;
+                free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
             }
         }
-    }
-
-    if(prev_index == 0) return;
-
-    assert(free_array[prev_index] != NULL);
-    assert(free_array[parent(prev_index)] == NULL);
-    if(islchild(prev_index)){
-        if(buddy_flag[prev_index + 1] == 1) {
-            SetPageProperty(page);
-            page->property = upper_n;
-            free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
-            free_array[prev_index + 1]     = NULL, buddy_flag[prev_index + 1]     = 0;
-            free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
-            buddy_merge_pages(page, 2 * upper_n);
+        else if(isrchild(prev_index)){
+            if(buddy_flag[prev_index - 1] == 1) {
+                cprintf("[buddy] free memmap merge to the left\n");
+                page -= upper_n;
+                SetPageProperty(page);
+                page->property = 2 * upper_n;
+                free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
+                free_array[prev_index - 1]     = NULL, buddy_flag[prev_index - 1]     = 0;
+                free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
+                buddy_merge_pages(page, 2 * upper_n);
+            }
+            else{
+                cprintf("[buddy] can't memmap merge, isrchild\n");
+                SetPageProperty(page);
+                page->property = upper_n;
+                free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
+            }
         }
-    }
-    else if(isrchild(prev_index)){
-        if(buddy_flag[prev_index - 1] == 1) {
-            page -= page->property;
-            SetPageProperty(page);
-            page->property = upper_n;
-            free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
-            free_array[prev_index - 1]     = NULL, buddy_flag[prev_index - 1]     = 0;
-            free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
-            buddy_merge_pages(page, 2 * upper_n);
-        }
-    }
+    //     n -= curr_n;
+    //     page += curr_n;
+    // }
 }
+
 
 static size_t
 buddy_nr_free_pages(void) {
@@ -532,6 +549,26 @@ buddy_check(void) {
     // free_pages(A + 250, 250);
 
     // follow the sample in coolshell
+    A = alloc_pages(70);
+    B = alloc_pages(35);
+    cprintf("[test ] A %p\n", A);
+    cprintf("[test ] B %p\n", B);
+    assert(A + 128 == B);  
+    C = alloc_pages(80);
+    assert(A + 256 == C);  
+    cprintf("[test ] C %p\n", C);
+    free_pages(A, 70);  
+    D = alloc_pages(60);
+    cprintf("[test ] D %p\n", D);
+    assert(B + 64 == D);  
+    free_pages(B, 35);
+    cprintf("[test ] D %p\n", D);
+    free_pages(D, 60);
+    cprintf("[test ] C %p\n", C);
+    free_pages(C, 80);
+
+    cprintf("\n[test ] ONCE COMPELETED, sizeofpage* = %d\n\n", sizeof(struct Page));
+
     A = alloc_pages(70);
     B = alloc_pages(35);
     cprintf("[test ] A %p\n", A);
