@@ -105,6 +105,7 @@ free_buddy_t free_buddy;
 #define buddy_flag (free_buddy.buddy_flag)  // buddy tag
 #define max_order (free_buddy.max_order)  // buddy array
 #define nrfree_buddy (free_buddy.nr_free_buddy)  // remaining capacity
+#define buddy_start (free_buddy.start)  // remaining capacity
 
 #define IS_POWER_OF_2(x) (!((x)&((x)-1)))
 
@@ -134,6 +135,15 @@ static u32 log2(u32 n) {
     return order;
 }
 
+static int page2index(struct Page* n) {
+    int k = 0;  // k is the real index
+    for(k; k < buddy_size; k = lchild(k)){
+        //cprintf("[buddy] alloc memmap k computing, k = %d, buddy_tag[k] = %d\n", k, buddy_tag[k]);
+        if (n == buddy_tag[k]) break;  // find level first
+    }
+    return k + (n - buddy_start) / n->property;
+}
+
 static void
 buddy_init(void) {
     cprintf("[buddy] init\n");
@@ -157,55 +167,63 @@ buddy_init_memmap(struct Page *base, size_t n) {
     }
     base->property = n;  // set the property
     nrfree_buddy += n;  // calculate the total nr_free
-    buddy_size = n2pow2ru(n) - 1;  // ?
+
+    int upper_n = n2pow2ru(n);
+    buddy_size = 2 * upper_n - 1;  // ?
+    buddy_start = base;  // set start bit, it will be used after
+    cprintf("[buddy] initing memmap, max buddy_size = %d, buddy_size = %d, n = %u \n", MAX_BUDDY_SIZE, buddy_size, (u32)n);
     assert(buddy_size < MAX_BUDDY_SIZE);
+
+
     // free_array = (struct Page*)malloc((buddy_size + 1) * sizeof(struct Page*));
     // buddy_tag  = (int)malloc((buddy_size + 1) * sizeof(int));
     // buddy_flag = (int)malloc((buddy_size + 1) * sizeof(int));
 
-
+    max_order = log2(n);
     struct Page * start = base;
     struct Page * end = base + n;
     int i = 0, prev_i = 0;
-    while(start != end)
+
+    int j = 0;
+    
+    u32 temp;
+    for (j; j < buddy_size; j++) {  // tag init
+        temp = n2pow2rd(j + 1);
+        if(j + 1 == temp){
+            cprintf("[buddy] initing memmap, j = %d, temp = %d, tag = %d \n", \
+        j, temp, upper_n / temp);
+            buddy_tag[j] = upper_n / temp;
+        }
+    }
+
+    if(IS_POWER_OF_2(n)){  // only have one big block
+        free_array[0] = start;
+        buddy_flag[0] = 1;
+        start->property = n;
+        SetPageProperty(start);
+        cprintf("[buddy] initing memmap FINISH n = %u \n",(u32)n);
+        return;
+    }
+
+    
+    while(start != end)  // many blocks
     {
-        //cprintf("[buddy] initing memmap, start =%p, end = %p, buddy_size = %d, n = %u \n", start, end, buddy_size, (u32)n);
         u32 curr_n = n2pow2rd(n);
-        // 向前挪一块
         // 设置free pages的数量
         start->property = curr_n;
         // 设置当前页为可用
         SetPageProperty(start);
 
-        int k = 0;
+        int k = 0;  // k is the real index
         for(k; k < buddy_size; k = lchild(k)){
-            // cprintf("[buddy] initing memmap, k = %d, lchild(k) = %d,  start =%p, end = %p, n = %u,  in for \n", k, lchild(k),  start, end, (u32)n);
-            if(k == 0 && free_array[0] == NULL){
-                max_order = log2(curr_n);
-                free_array[k] = start;
-                buddy_flag[k] = 1;
-                int j = 0, temp = curr_n;
-                for (j; j < buddy_size; j++) {  // tag init
-                    if(j + 1 == (n2pow2rd(j + 1)))
-                        //cprintf("[buddy] initing memmap, curr_n = %u, max_order = %u, j = %d, (n2pow2rd(j + 1)) = %u, tag = %d \n", \
-                    (u32)curr_n, max_order, j, ((n2pow2rd(j + 1))), curr_n / ((n2pow2rd(j + 1))));
-                    buddy_tag[j] = curr_n / n2pow2rd(j + 1);
-                }
-                return;
-            }
-            else {
-                if(free_array[k] == NULL){
-                    if(buddy_tag[k] != curr_n) continue;
-                    else{
-                        free_array[k] = start;
-                        buddy_flag[k] = 1;
-                    }
-                }
-                else {
-                    // maybe this branch shouldn't taken
-                }
-            }
+            //cprintf("[buddy] alloc memmap k computing, k = %d, buddy_tag[k] = %d\n", k, buddy_tag[k]);
+            if (curr_n == buddy_tag[k]) break;  // find level first
         }
+        int index = k + (start - buddy_start) / curr_n;
+        cprintf("[buddy] initing memmap, start =%p, end = %p, index = %d, buddy_size = %d, n = %u \n", start, end, index, buddy_size, (u32)n);
+        free_array[index] = start;
+        buddy_flag[index] = 1;
+
         start += curr_n;
         n -= curr_n;
     }
