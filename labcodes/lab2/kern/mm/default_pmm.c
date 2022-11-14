@@ -388,80 +388,71 @@ buddy_merge_pages(struct Page *base, size_t n) {
 
 static void
 buddy_free_pages(struct Page *base, size_t n) {
-    // u32 curr_n = n2pow2rd(n);
-    // struct Page *page = base;
-    // while(n != 0)  // many blocks
-    // {
-        assert(n > 0);
-        cprintf("[buddy] free memmap start\n");
-        //u32 curr_n = n2pow2rd(n);
-        struct Page *page = base;
-        //int upper_n = curr_n;
-        int upper_n = n2pow2ru(n);
-        cprintf("[buddy] free memmap, upper_n = %d\n", upper_n);
-        int order = max_order - log2(upper_n);
-        int layer_bound = 1 << order;
+    assert(n > 0);
+    cprintf("[buddy] free memmap start\n");
+    int upper_n = n2pow2ru(n);
+    cprintf("[buddy] free memmap, upper_n = %d\n", upper_n);
+    int order = max_order - log2(upper_n);
+    int layer_bound = 1 << order;
 
-        struct Page *p = base;
-        for (; p != base + upper_n; p ++) {
-            //cprintf("[buddy] free memmap, reseting base, p = %p, n = %u, reserved = %d, property = %d, num = %d\n", p, (u32)n, PageReserved(p), PageProperty(p), p - base);
-            assert(!PageReserved(p) && !PageProperty(p));
-            p->flags = 0;
-            set_page_ref(p, 0);
+    struct Page *p = base;
+    for (; p != base + upper_n; p ++) {
+        //cprintf("[buddy] free memmap, reseting base, p = %p, n = %u, reserved = %d, property = %d, num = %d\n", p, (u32)n, PageReserved(p), PageProperty(p), p - base);
+        assert(!PageReserved(p) && !PageProperty(p));
+        p->flags = 0;
+        set_page_ref(p, 0);
+    }
+    nrfree_buddy += upper_n;
+    base->property = upper_n;
+    cprintf("[buddy] free memmap, clear over\n");
+    // 查找符合要求的连续页
+    struct Page *page = base;
+
+    int index = page2index(page);
+
+    int prev_index = index;
+
+    cprintf("[buddy] free memmap, index = %d, prev_index = %d, free_array[prev_index] = %p\n", index, prev_index, free_array[prev_index]);
+
+    if(prev_index == 0) return;
+
+    assert(free_array[prev_index] == NULL);
+    assert(free_array[parent(prev_index)] == NULL);
+    if(islchild(prev_index)){
+        if(buddy_flag[prev_index + 1] == 1) {
+            SetPageProperty(page);
+            page->property = 2 * upper_n;
+            cprintf("[buddy] free memmap merge to the right, page->property = %u\n", page->property);
+            free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
+            free_array[prev_index + 1]     = NULL, buddy_flag[prev_index + 1]     = 0;
+            free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
+            buddy_merge_pages(page, 2 * upper_n);
         }
-        nrfree_buddy += upper_n;
-        base->property = upper_n;
-        cprintf("[buddy] free memmap, clear over\n");
-        // 查找符合要求的连续页
-
-        int index = page2index(page);
-
-        int prev_index = index;
-
-        cprintf("[buddy] free memmap, index = %d, prev_index = %d, free_array[prev_index] = %p\n", index, prev_index, free_array[prev_index]);
-
-        if(prev_index == 0) return;
-
-        assert(free_array[prev_index] == NULL);
-        assert(free_array[parent(prev_index)] == NULL);
-        if(islchild(prev_index)){
-            if(buddy_flag[prev_index + 1] == 1) {
-                SetPageProperty(page);
-                page->property = 2 * upper_n;
-                cprintf("[buddy] free memmap merge to the right, page->property = %u\n", page->property);
-                free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
-                free_array[prev_index + 1]     = NULL, buddy_flag[prev_index + 1]     = 0;
-                free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
-                buddy_merge_pages(page, 2 * upper_n);
-            }
-            else{
-                cprintf("[buddy] can't memmap merge, islchild\n");
-                SetPageProperty(page);
-                page->property = upper_n;
-                free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
-            }
+        else{
+            cprintf("[buddy] can't memmap merge, islchild\n");
+            SetPageProperty(page);
+            page->property = upper_n;
+            free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
         }
-        else if(isrchild(prev_index)){
-            if(buddy_flag[prev_index - 1] == 1) {
-                cprintf("[buddy] free memmap merge to the left\n");
-                page -= upper_n;
-                SetPageProperty(page);
-                page->property = 2 * upper_n;
-                free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
-                free_array[prev_index - 1]     = NULL, buddy_flag[prev_index - 1]     = 0;
-                free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
-                buddy_merge_pages(page, 2 * upper_n);
-            }
-            else{
-                cprintf("[buddy] can't memmap merge, isrchild\n");
-                SetPageProperty(page);
-                page->property = upper_n;
-                free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
-            }
+    }
+    else if(isrchild(prev_index)){
+        if(buddy_flag[prev_index - 1] == 1) {
+            cprintf("[buddy] free memmap merge to the left\n");
+            page -= upper_n;
+            SetPageProperty(page);
+            page->property = 2 * upper_n;
+            free_array[prev_index]         = NULL, buddy_flag[prev_index]         = 0;
+            free_array[prev_index - 1]     = NULL, buddy_flag[prev_index - 1]     = 0;
+            free_array[parent(prev_index)] = page, buddy_flag[parent(prev_index)] = 1;
+            buddy_merge_pages(page, 2 * upper_n);
         }
-    //     n -= curr_n;
-    //     page += curr_n;
-    // }
+        else{
+            cprintf("[buddy] can't memmap merge, isrchild\n");
+            SetPageProperty(page);
+            page->property = upper_n;
+            free_array[prev_index]         = page, buddy_flag[prev_index]         = 1;
+        }
+    }
 }
 
 
