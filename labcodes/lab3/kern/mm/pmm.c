@@ -360,6 +360,25 @@ get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_W           0x002                   // page table/directory entry flags bit : Writeable
      *   PTE_U           0x004                   // page table/directory entry flags bit : User can access
      */
+    //pdep: 通过一级页表地址pgdir和线性地址la获取一级页表项（的指针）
+    pde_t *pdep = &pgdir[PDX(la)];
+    if (!(*pdep & PTE_P)) {//检查一级页表项，如果对应pte不存在（PTE_P位）创建pte
+        struct Page *page;//新建page
+        if (!create || (page = alloc_page()) == NULL){//不新建（create=0）或者没地，返回NULL
+            return NULL;
+        }
+        set_page_ref(page, 1);//设置page的引用次数为1
+        uintptr_t pa = page2pa(page);//转page变为偏移？
+        memset(KADDR(pa), 0, PGSIZE);//清空page，使用KADDR（pa）获取页对应的内核虚拟地址
+        *pdep = pa | PTE_U | PTE_W | PTE_P;//修改一级页表项中的标志位，PTE_U：用户可用，PTE_W：可写，PTE_P：存在
+    }
+
+    //                                                     获取la地址的一级页表部分索引，访问一级页表项
+    //获取内核虚拟地址，转换成一级页表项指针                           |
+    //                    |       保留*pdep（一级页表项）的前20位      |
+    //                    |                 |                       |
+    return &(   (pte_t *)KADDR(        PDE_ADDR(*pdep)     )  )[PTX(la)];
+
 #if 0
     pde_t *pdep = NULL;   // (1) find page directory entry
     if (0) {              // (2) check if entry is not present
@@ -408,6 +427,14 @@ page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
      * DEFINEs:
      *   PTE_P           0x001                   // page table/directory entry flags bit : Present
      */
+    if (*ptep & PTE_P) {//检查一级页表项，如果对应页存在再remove
+        struct Page *page = pte2page(*ptep); //从一级页表项所在的page
+        if(page_ref_dec(page) == 0) {//page引用次数-1，之后如果等于0就释放page
+                free_page(page);
+        }
+        *ptep = 0;//一级页表项清零
+        tlb_invalidate(pgdir, la);//设置tlb中对应地址无效
+    }
 #if 0
     if (0) {                      //(1) check if this page table entry is present
         struct Page *page = NULL; //(2) find corresponding page to pte

@@ -298,12 +298,26 @@ print_stackframe(void) {
       * (2) call read_eip() to get the value of eip. the type is (uint32_t);
       * (3) from 0 .. STACKFRAME_DEPTH
       *    (3.1) printf value of ebp, eip
-      *    (3.2) (uint32_t)calling arguments [0..4] = the contents in address (uint32_t)ebp +2 [0..4]
+      *    (3.2) (uint32_t)calling arguments [0..4] = th〔方案選單〕 e contents in address (uint32_t)ebp +2 [0..4]
       *    (3.3) cprintf("\n");
       *    (3.4) call print_debuginfo(eip-1) to print the C calling function name and line number, etc.
       *    (3.5) popup a calling stackframe
       *           NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
       *                   the calling funciton's ebp = ss:[ebp]
       */
+
+    uint32_t ebp_val = read_ebp();
+    uint32_t eip_val = read_eip();
+    int i = 0;
+    for(i = 0; i < STACKFRAME_DEPTH && ebp_val != 0; i++){
+        cprintf("ebp:0x%08x, eip:0x%08x", ebp_val, eip_val);  // 输出八位十六进制（即32位寄存器值）
+        uint32_t* ebp_ptr = (uint32_t*)ebp_val;
+        uint32_t args[] = {*(ebp_ptr+2), *(ebp_ptr+3), *(ebp_ptr+4), *(ebp_ptr+5)};
+        cprintf(" args:0x%08x 0x%08x 0x%08x 0x%08x", args[0], args[1], args[2], args[3]);
+        cprintf("\n");
+        print_debuginfo(eip_val - 1);
+        eip_val = *(uint32_t*)(ebp_val + 4);
+        ebp_val = *(uint32_t*)ebp_val;
+    }
 }
 
