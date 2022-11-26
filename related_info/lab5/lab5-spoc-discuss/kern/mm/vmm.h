@@ -7,10 +7,10 @@
 #include <sync.h>
 
 //pre define
-struct mm_struct;
+struct mm_struct;  // lab3 new, to describe legal vpage
 
 // the virtual continuous memory area(vma)
-struct vma_struct {
+struct vma_struct {  // lab3 new, to describe legal vpage
     struct mm_struct *vm_mm; // the set of vma using the same PDT 
     uintptr_t vm_start;      //    start addr of vma    
     uintptr_t vm_end;        // end addr of vma

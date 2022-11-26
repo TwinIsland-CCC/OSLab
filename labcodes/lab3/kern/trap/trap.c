@@ -156,7 +156,7 @@ print_pgfault(struct trapframe *tf) {
 }
 
 static int
-pgfault_handler(struct trapframe *tf) {
+pgfault_handler(struct trapframe *tf) {  // lab3 new, to handle pf
     extern struct mm_struct *check_mm_struct;
     print_pgfault(tf);
     if (check_mm_struct != NULL) {
@@ -176,7 +176,7 @@ trap_dispatch(struct trapframe *tf) {
     int ret;
 
     switch (tf->tf_trapno) {
-    case T_PGFLT:  //page fault
+    case T_PGFLT:  //page fault, lab3 new
         if ((ret = pgfault_handler(tf)) != 0) {
             print_trapframe(tf);
             panic("handle pgfault failed. %e\n", ret);
