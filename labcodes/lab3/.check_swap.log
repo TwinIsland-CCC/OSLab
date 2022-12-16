@@ -286,4 +286,3 @@ ebp:0xc0120ff8, eip:0xc0102aa5 args:0xc0109764 0xc010976c 0xc0100c81 0xc010978b
     kern/trap/trapentry.S:24: <unknown>+0
 Welcome to the kernel debug monitor!!
 Type 'help' for a list of commands.
-K
