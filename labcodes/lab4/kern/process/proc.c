@@ -102,6 +102,20 @@ alloc_proc(void) {
      *       uint32_t flags;                             // Process flag
      *       char name[PROC_NAME_LEN + 1];               // Process name
      */
+        proc->state = PROC_UNINIT;  //设置进程为“初始”态
+        proc->pid = -1;             //设置进程pid的未初始化值
+        proc->cr3 = boot_cr3;       //使用内核页目录表的基址
+        proc->runs = 0;             // the running times of Proces
+        proc->kstack = NULL;        // Process kernel stack
+        proc->need_resched = 0;     // bool value: need to be rescheduled to release CPU?
+        proc->parent = NULL;        // the parent process
+        proc->mm = NULL;            // Process's memory management field
+        memset(&(proc->context), 0,\
+         sizeof(struct context));   // Switch here to run process
+        proc->tf = NULL;            // Trap frame for current interrupt
+        proc->flags = 0;            // Process flag
+        memset(proc->name, 0, \ 
+        PROC_NAME_LEN);             // Process name
     }
     return proc;
 }
